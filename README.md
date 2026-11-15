@@ -25,12 +25,12 @@ were grid-searched and the agents trained and selected using the **training peri
 
 | Policy (all 10 SKUs) | Total cost | Fill rate | Avg inventory (units, summed) | Orders placed |
 |---|---:|---:|---:|---:|
-| **StockPilot PPO** | **£6,779** | **99.3%** | 22,075 | 238 |
+| **StockPilot PPO** | **£6,902** | **99.2%** | 21,817 | 237 |
 | (s,S), grid search | £11,792 | 95.3% | 21,078 | 123 |
 | Base-stock | £8,495 | 99.6% | 23,091 | 1,353 |
 | Moving average + safety stock | £18,550 | 94.4% | 26,201 | 879 |
 
-**StockPilot beats (s,S) on 8 of 10 SKUs, with 42.5% lower total cost (£5,012 saved), and beats base-stock on 9 of 10.**
+**StockPilot beats (s,S) on 8 of 10 SKUs, with 41.5% lower total cost (£4,890 saved), and beats base-stock on 9 of 10.**
 Its total is also lower than an *oracle* that picks the best baseline per SKU with hindsight (£7,216).
 
 | SKU | Product | StockPilot | (s,S) | Saving | Fill (agent) | Fill (s,S) | Agent wins |
@@ -42,26 +42,33 @@ Its total is also lower than an *oracle* that picks the best baseline per SKU wi
 | 22492 | Mini Paint Set Vintage | £353 | £945 | +62.7% | 98.5% | 90.9% | ✅ |
 | 84077 | World War 2 Gliders Asstd Designs | £303 | £334 | +9.5% | 100.0% | 98.0% | ✅ |
 | 84879 | Assorted Colour Bird Ornament | £1,488 | £2,308 | +35.5% | 100.0% | 97.7% | ✅ |
-| 84991 | 60 Teatime Fairy Cake Cases | £231 | £241 | +4.3% | 100.0% | 100.0% | ✅ |
-| 85099B | Jumbo Bag Red Retrospot | £1,018 | £894 | −13.8% | 99.4% | 99.6% | ❌ |
-| 85123A | White Hanging Heart T-Light Holder | £1,112 | £1,133 | +1.9% | 100.0% | 99.4% | ✅ |
+| 84991 | 60 Teatime Fairy Cake Cases | £239 | £241 | +1.0% | 100.0% | 100.0% | ✅ |
+| 85099B | Jumbo Bag Red Retrospot | £1,266 | £894 | −41.6% | 98.7% | 99.6% | ❌ |
+| 85123A | White Hanging Heart T-Light Holder | £978 | £1,133 | +13.7% | 100.0% | 99.4% | ✅ |
 
 **Stress test** (demand scaled on the test period; no policy re-tuned):
 
 | Scenario | StockPilot | (s,S) | Agent wins |
 |---|---:|---:|:-:|
-| Demand −30% | £6,062 | £7,678 | 4 / 10 |
-| Real demand | £6,779 | £11,792 | 8 / 10 |
-| Demand +30% | £14,361 | £19,067 | 7 / 10 |
+| Demand −30% | £5,918 | £7,678 | 4 / 10 |
+| Real demand | £6,902 | £11,792 | 8 / 10 |
+| Demand +30% | £16,564 | £19,067 | 7 / 10 |
 
 ### Read this honestly
-- **Two SKUs still lose to (s,S)**: 21977 (−17%) and 85099B (−14%). Both got two rounds of tuning: action range
+- **Two SKUs still lose to (s,S)**: 21977 (−17%) and 85099B (−42%). Both got two rounds of tuning: action range
   0–4× lead-time demand, three more seeds, and 1.5M steps. The variant kept for each SKU was the one with the
   lowest **training-period** cost, never the best test result, so the test set stays untouched. On these
   steady, high-volume SKUs a well-tuned (s,S) is already near-optimal, and the agent orders more often than it needs to.
+- **PPO results vary between runs, and the first automated retrain exposed this.** One CI retrain on GitHub's runner
+  (same seeds, different CPU) produced agents that beat (s,S) on only 4/10 SKUs (+15% cost). The pipeline now uses
+  **champion/challenger promotion**: each retrain trains 3 seeds per SKU, keeps the cheapest *on the training period*,
+  and replaces the deployed agent only if it is cheaper on the training period than the current one. Applying that
+  rule to the local and CI agents kept 7 local and 3 CI agents; those are the results above. The rule cost us on
+  85099B: its CI agent was slightly better on training (£2,202 vs £2,222) but worse on test (−42% vs −14%). We kept
+  the rule's choice, because swapping in the test-better agent would be peeking at the test set.
 - **A large share of the aggregate saving comes from two SKUs** (22197, 84879). There, the (s,S) parameters tuned on
   2010 demand under-stock the larger 2011 peak (fill 85% and 98%). The agent sees the last 14 days of demand and reacts.
-  Without those two SKUs the agent still saves 11.2% over (s,S) on the other eight (£4,145 vs £4,668).
+  Without those two SKUs the agent still saves 8.6% over (s,S) on the other eight (£4,268 vs £4,668).
 - **With 30% less demand the agent wins only 4/10 SKUs.** It was trained at historical demand levels and keeps
   slightly too much stock when demand drops. (s,S) does the same, but less.
 - The economics are assumptions: unit cost = 60% of price, 100%/yr carrying cost, £2 per order, stockout penalty =
@@ -91,6 +98,7 @@ Training: Stable-Baselines3 PPO, `VecNormalize`, 8 environments, 128×128 MLP, f
    policy head now starts with P(order 0) = 0.9; training is otherwise unchanged.
 2. **Checkpoint selection on training data.** Every 5% of training, the policy is replayed on the training
    period and the cheapest checkpoint is kept.
+3. **Champion/challenger.** A retrain promotes a new agent only if it beats the current one on training-period cost.
 
 ## Architecture
 
@@ -183,8 +191,8 @@ weekly retrain trains on your sheet. A private sheet can be read with a gspread 
 
 [`.github/workflows/retrain.yml`](.github/workflows/retrain.yml) runs every Monday at 03:00 UTC and on demand
 (**Actions → Retrain StockPilot → Run workflow**). It runs the tests, pulls the latest data (the live sheet if
-`LIVE_CSV_URL` is set, otherwise UCI), re-tunes the baselines, retrains every agent (4 in parallel), re-runs the
-backtest and commits `models/` and `results/`. The push makes Streamlit Cloud redeploy automatically.
+`LIVE_CSV_URL` is set, otherwise UCI), re-tunes the baselines, trains 3 challenger seeds per SKU (4 SKUs in parallel), promotes a challenger only if it
+beats the current agent on training-period cost, re-runs the backtest and commits `models/` and `results/`. The push makes Streamlit Cloud redeploy automatically.
 
 ## Data licence
 

@@ -47,6 +47,7 @@ ppo:
   clip_range: 0.2
   net_arch: [128, 128]
   seed: 42
+  n_seeds: 3               # challengers per SKU per retrain; best by TRAIN cost, promoted only if it beats the current agent
   init_p_zero: 0.9         # initial P(order nothing); keeps early exploration from overstocking
 
 # Per-SKU tuning, chosen by TRAINING-period cost only (never by test results).

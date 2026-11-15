@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import json
 import pickle
+import shutil
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -147,13 +148,56 @@ def train_sku(ctx: SkuContext, cfg: dict, steps: int | None = None, seed: int | 
     return meta
 
 
+def score_on_train(sku_dir: Path, ctx: SkuContext, cfg: dict) -> float:
+    """Training-period replay cost of the agent saved in sku_dir (inf if none). Never touches test data."""
+    agent = load_agent(sku_dir)
+    if agent is None:
+        return float("inf")
+    r = ctx.train_replay(int(cfg["env"]["history_len"]))
+    m, _ = simulate(agent[0], ctx.params, r["demand"], r["dows"], r["history"])
+    return float(m["total_cost"])
+
+
+AGENT_FILES = ("ppo.zip", "vecnormalize.pkl", "meta.json")
+
+
+def train_and_promote(ctx: SkuContext, cfg: dict, steps: int | None = None, n_seeds: int | None = None) -> dict:
+    """Train n_seeds challengers, keep the best by training cost, and replace the current (champion) agent
+    only if the challenger is cheaper on the training period. PPO varies a lot between runs, so a blind
+    overwrite can silently make a deployed agent worse."""
+    eff = merged(cfg, (cfg.get("sku_overrides") or {}).get(ctx.sku))
+    n_seeds = int(n_seeds or eff["ppo"].get("n_seeds", 1))
+    base_seed = int(eff["ppo"]["seed"])
+    models = resolve(cfg["paths"]["models_dir"])
+    staging = models / ".staging"
+    cands = []
+    for k in range(n_seeds):
+        root = staging / f"seed{k}"
+        meta = train_sku(ctx, cfg, steps=steps, seed=base_seed + 1000 * k, out_root=root)
+        cands.append((score_on_train(root / ctx.sku, ctx, cfg), root / ctx.sku, meta["seed"]))
+    chall_cost, chall_dir, chall_seed = min(cands, key=lambda c: c[0])
+    target = models / ctx.sku
+    champ_cost = score_on_train(target, ctx, cfg)
+    promoted = chall_cost < champ_cost
+    if promoted:
+        target.mkdir(parents=True, exist_ok=True)
+        for f in AGENT_FILES:
+            shutil.copy(chall_dir / f, target / f)
+    shutil.rmtree(staging, ignore_errors=True)
+    verdict = "PROMOTED new agent" if promoted else "KEPT current agent"
+    print(f"[{ctx.sku}] {verdict}: challenger (seed {chall_seed}) train cost {chall_cost:.1f} vs "
+          f"current {champ_cost:.1f}  [seeds tried: {', '.join(f'{c:.0f}' for c, _, _ in cands)}]", flush=True)
+    return {"sku": ctx.sku, "promoted": promoted, "challenger_cost": chall_cost, "champion_cost": champ_cost}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Train StockPilot PPO agents")
     ap.add_argument("--mode", choices=["public", "live"], default=None)
     ap.add_argument("--sku", action="append", help="train only these SKUs (repeatable)")
     ap.add_argument("--all", action="store_true")
     ap.add_argument("--steps", type=int, default=None)
-    ap.add_argument("--out", default=None, help="models output dir (default from config)")
+    ap.add_argument("--out", default=None, help="experiment output dir (skips champion/challenger promotion)")
+    ap.add_argument("--seeds", type=int, default=None, help="challenger seeds per SKU (default ppo.n_seeds)")
     ap.add_argument("--set", action="append", default=[],
                     help="override config, e.g. --set env.action_max_mult=4 --set ppo.ent_coef=0.02")
     args = ap.parse_args()
@@ -168,8 +212,11 @@ def main() -> None:
         ctxs = [c for c in ctxs if c.sku in set(args.sku)]
     t0 = time.time()
     for c in ctxs:
-        train_sku(c, cfg, steps=args.steps, out_root=Path(args.out) if args.out else None)
-    print(f"Trained {len(ctxs)} agent(s) in {(time.time() - t0) / 60:.1f} min -> models/<sku>/ppo.zip")
+        if args.out:   # experiment: write straight to another folder, no promotion
+            train_sku(c, cfg, steps=args.steps, out_root=Path(args.out))
+        else:
+            train_and_promote(c, cfg, steps=args.steps, n_seeds=args.seeds)
+    print(f"Done: {len(ctxs)} SKU(s) in {(time.time() - t0) / 60:.1f} min")
 
 
 if __name__ == "__main__":
