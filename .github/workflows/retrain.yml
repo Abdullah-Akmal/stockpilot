@@ -1,0 +1,78 @@
+name: Retrain StockPilot
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"      # every Monday 03:00 UTC
+  workflow_dispatch:
+    inputs:
+      steps:
+        description: "PPO timesteps per SKU (blank = config default)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: retrain
+  cancel-in-progress: false
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      LIVE_CSV_URL: ${{ secrets.LIVE_CSV_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Choose data mode
+        id: mode
+        run: |
+          if [ -n "$LIVE_CSV_URL" ]; then echo "mode=live" >> "$GITHUB_OUTPUT"; else echo "mode=public" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Tests
+        run: python -m pytest
+
+      - name: 1. Pull latest data
+        run: python -m stockpilot.data --mode ${{ steps.mode.outputs.mode }}
+
+      - name: 2. Tune baselines (train period only)
+        run: python -m stockpilot.baselines --mode ${{ steps.mode.outputs.mode }}
+
+      - name: 3. Train PPO agents (one process per SKU, in parallel)
+        run: |
+          STEPS="${{ github.event.inputs.steps }}"
+          ARGS=""; [ -n "$STEPS" ] && ARGS="--steps $STEPS"
+          SKUS=$(python -c "from stockpilot.config import load_config; from stockpilot.data import load_dataset, sku_contexts; c=load_config(); print(' '.join(x.sku for x in sku_contexts(load_dataset('${{ steps.mode.outputs.mode }}', c).df, c)))")
+          mkdir -p logs
+          for s in $SKUS; do
+            python -m stockpilot.train --mode ${{ steps.mode.outputs.mode }} --sku "$s" $ARGS > "logs/train_$s.log" 2>&1 &
+            # at most 4 concurrent trainings (runner has 4 vCPUs)
+            while [ "$(jobs -rp | wc -l)" -ge 4 ]; do sleep 5; done
+          done
+          wait
+          grep -h "^\[" logs/train_*.log
+
+      - name: 4. Backtest on held-out period
+        run: python -m stockpilot.evaluate --mode ${{ steps.mode.outputs.mode }}
+
+      - name: Commit updated models and metrics
+        run: |
+          git config user.name "stockpilot-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add models results data/processed data/sample
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Weekly retrain: models and metrics ($(date -u +%Y-%m-%d), ${{ steps.mode.outputs.mode }} data)"
+            git push
+          fi

@@ -1,0 +1,25 @@
+{
+  "sS": {
+    "params": {
+      "s": 1280.12,
+      "S": 2901.6
+    },
+    "train_cost": 705.09,
+    "train_fill_rate": 0.9991
+  },
+  "base_stock": {
+    "params": {
+      "B": 2406.62
+    },
+    "train_cost": 1566.07,
+    "train_fill_rate": 0.9995
+  },
+  "ma_safety": {
+    "params": {
+      "window": 56,
+      "z": 4.8
+    },
+    "train_cost": 1524.75,
+    "train_fill_rate": 0.9995
+  }
+}
