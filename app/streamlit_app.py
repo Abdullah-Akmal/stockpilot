@@ -215,6 +215,7 @@ def page_backtest():
             fig.add_bar(name=LABELS[p], x=d.sku, y=d[metric], marker_color=COLORS[p])
         fig.update_layout(barmode="group", title=title, height=380, margin=dict(l=10, r=10, t=50, b=10),
                           legend=dict(orientation="h", y=-0.15), plot_bgcolor="white")
+        fig.update_xaxes(type="category", title="SKU")   # SKU codes look numeric; keep them as labels
         if metric == "fill_rate":
             fig.update_yaxes(range=[max(0, m.fill_rate.min() - 0.03), 1.0], tickformat=".0%")
         col.plotly_chart(fig, use_container_width=True)
@@ -352,7 +353,7 @@ too often and fixed ordering costs add up. StockPilot learns, per SKU, an orderi
 | | |
 |---|---|
 | **State** | on-hand stock, the order pipeline (up to 14 days, padded), lead time, inventory position, last 14 days of demand (÷ mean), day of week |
-| **Action** | discrete order quantity: {CFG['env']['n_actions']} levels from 0 to {CFG['env']['action_max_mult']}× mean lead-time demand |
+| **Action** | discrete order quantity: {CFG['env']['n_actions']} levels from 0 to {CFG['env']['action_max_mult']}× mean lead-time demand (4× for SKUs tuned that way in `sku_overrides`) |
 | **Transition** | order arrives after exactly *L* days · demand served FIFO from stock · unmet demand is lost · optional shelf-life expiry |
 | **Reward** | −(holding + fixed ordering + stockout penalty + waste) ÷ (margin × mean demand). This equals daily profit minus margin × demand, a term the agent cannot affect, so it has the same optimum as profit with far lower variance. |
 | **Demand** | training: 7-day block bootstrap of the training period's real sales; evaluation: exact replay of real held-out sales |

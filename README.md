@@ -2,7 +2,7 @@
 
 **Autopilot for inventory: an RL agent that decides what to order today.**
 
-🔗 **Live app:** _added after Streamlit Cloud deployment_ · 📊 Data: [UCI Online Retail II](https://archive.ics.uci.edu/dataset/502/online+retail+ii) or your own Google Sheet
+🔗 **Live app: <https://stockpilot-7wqs2osthj56yvsma2mmaq.streamlit.app/>** · 📊 Data: [UCI Online Retail II](https://archive.ics.uci.edu/dataset/502/online+retail+ii) or your own Google Sheet
 
 ![StockPilot dashboard](docs/screenshot.png)
 
