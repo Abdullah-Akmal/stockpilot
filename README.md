@@ -198,10 +198,23 @@ export LIVE_CSV_URL=https://raw.githubusercontent.com/Abdullah-Akmal/stockpilot/
 python -m stockpilot.data && python -m stockpilot.baselines && python -m stockpilot.train --all && python -m stockpilot.evaluate
 ```
 
-On the demo shop (one seed, no per-SKU tuning), PPO beat (s,S) on 3 of 7 SKUs on its 92 held-out days, with 10.4%
-lower total cost overall. It lost clearly on the steadiest products (Earl Grey −173%, 12oz cups −58%), where a tuned
-(s,S) is already near-optimal. The demo data is synthetic and its `units_sold` are capped by stockouts (censored
-demand), as in real shop data; StockPilot treats sales as demand.
+Results on the demo shop's 92 held-out days:
+
+| | Out of the box (1 seed, no tuning) | After 2 tuning rounds |
+|---|---:|---:|
+| SKUs where PPO beats (s,S) | 3 / 7 | 4 / 7 |
+| Total cost, PPO vs (s,S) | £3,199 vs £3,569 (−10.4%) | £2,840 vs £3,569 (−20.4%) |
+| Demand −30%: SKUs won | 1 / 7 | 1 / 7 |
+| Demand +30%: SKUs won | 7 / 7 | 6 / 7 |
+
+Tuning was applied to the 4 losing SKUs: order range 2×, 4× or 5×, more seeds and 1.5M steps. Each SKU kept the
+variant with the lowest **training-period** cost. A wider order range (4×) helped most: the agent needed larger,
+less frequent orders to save on fixed ordering costs. FILTER-PAPERS went from −23% to +54%, and Earl Grey from −173% to
+−36%. **Three steady, low-variance SKUs still lose** (12oz cups −56%, Earl Grey −36%, mug −7%); on these, a tuned
+(s,S) is close to optimal. On 12oz cups the agent chosen in round 2 was marginally better on training but worse on
+test than round 1's (−11%). We kept it, because choosing by test results would be peeking. The tuned settings are in
+`sku_overrides` in [`configs/demo.yaml`](configs/demo.yaml). The demo data is synthetic and its `units_sold` are capped by
+stockouts (censored demand), as in real shop data; StockPilot treats sales as demand.
 
 ## Deploy (Streamlit Community Cloud)
 

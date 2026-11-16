@@ -133,7 +133,8 @@ def main() -> None:
               f"total cost PPO {tot_ppo:,.0f} vs (s,S) {tot_ss:,.0f} ({100 * (tot_ss - tot_ppo) / tot_ss:+.1f}% saving)")
         print(s[["sku", "ppo_cost", "sS_cost", "saving_vs_sS_%", "ppo_fill", "sS_fill", "best_baseline"]]
               .to_string(index=False))
-    print(f"\nWrote results/metrics.csv, stress_metrics.csv, summary.csv, traces.csv and 3 plots ({ds.source} data)")
+    print(f"\nWrote metrics.csv, stress_metrics.csv, summary.csv, traces.csv and 3 plots to "
+          f"{out.relative_to(resolve('.'))}/ ({ds.source} data)")
 
 
 if __name__ == "__main__":

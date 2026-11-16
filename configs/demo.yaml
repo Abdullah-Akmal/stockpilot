@@ -53,7 +53,11 @@ ppo:
   init_p_zero: 0.9         # initial P(order nothing); keeps early exploration from overstocking
 
 # Per-SKU tuning, chosen by TRAINING-period cost only (never by test results).
-sku_overrides: {}
+sku_overrides:            # chosen by TRAINING-period cost over 2 tuning rounds
+  "COF-CUP-12OZ":  {env: {action_max_mult: 4}, ppo: {seed: 21, total_timesteps: 800000}}
+  "FILTER-PAPERS": {env: {action_max_mult: 4}, ppo: {total_timesteps: 800000}}
+  "MUG-CERAMIC":   {env: {action_max_mult: 2}, ppo: {seed: 7, total_timesteps: 800000}}
+  "TEA-EARLGREY":  {env: {action_max_mult: 4}, ppo: {total_timesteps: 1500000}}
 
 paths:
   models_dir: models_demo
