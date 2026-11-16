@@ -175,7 +175,7 @@ def page_today():
     view = rec[["sku", "description", "stockpilot_order", "sS_order", "on_hand", "on_order", "avg_demand_14d",
                 "recent_demand", "lead_time", "note"]]
     st.dataframe(
-        view, hide_index=True, use_container_width=True,
+        view, hide_index=True, width="stretch",
         column_config={
             "sku": "SKU", "description": st.column_config.TextColumn("Product", width="medium"), "on_hand": st.column_config.NumberColumn("On hand", format="%d"),
             "on_order": st.column_config.NumberColumn("On order", format="%d"),
@@ -218,12 +218,12 @@ def page_backtest():
         fig.update_xaxes(type="category", title="SKU")   # SKU codes look numeric; keep them as labels
         if metric == "fill_rate":
             fig.update_yaxes(range=[max(0, m.fill_rate.min() - 0.03), 1.0], tickformat=".0%")
-        col.plotly_chart(fig, use_container_width=True)
+        col.plotly_chart(fig, width="stretch")
 
     st.markdown("**Per-SKU result vs (s,S)**")
     tbl = s[["sku", "ppo_cost", "sS_cost", "saving_vs_sS_%", "ppo_fill", "sS_fill", "ppo_beats_sS"]].copy()
     tbl.insert(1, "product", tbl.sku.map(desc).fillna(""))
-    st.dataframe(tbl, hide_index=True, use_container_width=True, column_config={
+    st.dataframe(tbl, hide_index=True, width="stretch", column_config={
         "ppo_cost": st.column_config.NumberColumn("StockPilot cost", format="£%.0f"),
         "sS_cost": st.column_config.NumberColumn("(s,S) cost", format="£%.0f"),
         "saving_vs_sS_%": st.column_config.NumberColumn("Saving", format="%.1f%%"),
@@ -243,7 +243,7 @@ def page_backtest():
     lost = tr[(tr.sku == sku)].groupby("policy").lost.sum()
     fig.update_layout(height=420, margin=dict(l=10, r=10, t=30, b=10), plot_bgcolor="white",
                       legend=dict(orientation="h", y=1.08), yaxis_title="Units")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     st.caption(f"Lost units on this SKU: StockPilot {int(lost.get('ppo', 0)):,} · (s,S) {int(lost.get('sS', 0)):,}")
 
     st.markdown("**Cost breakdown (all SKUs)**")
@@ -254,7 +254,7 @@ def page_backtest():
                     marker_color=colr)
     fig.update_layout(barmode="stack", height=340, margin=dict(l=10, r=10, t=10, b=10), plot_bgcolor="white",
                       yaxis_title="GBP")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
 
     st.markdown("**Stress test (policies not re-tuned)**")
     sm = res["summary"]
@@ -264,7 +264,7 @@ def page_backtest():
     agg["saving_%"] = (100 * (agg.sS_cost - agg.ppo_cost) / agg.sS_cost).round(1)
     agg["agent wins"] = agg.wins.astype(int).astype(str) + " / " + agg.skus.astype(str)
     st.dataframe(agg[["scenario", "ppo_cost", "sS_cost", "saving_%", "agent wins"]], hide_index=True,
-                 use_container_width=True, column_config={
+                 width="stretch", column_config={
                      "ppo_cost": st.column_config.NumberColumn("StockPilot cost", format="£%.0f"),
                      "sS_cost": st.column_config.NumberColumn("(s,S) cost", format="£%.0f"),
                      "saving_%": st.column_config.NumberColumn("Saving", format="%.1f%%")})
@@ -334,9 +334,9 @@ def page_whatif():
         fig.add_scatter(x=tr.date, y=tr.on_hand_end, name=lab[name], line=dict(color=pal[name], width=2))
     fig.update_layout(height=400, margin=dict(l=10, r=10, t=30, b=10), plot_bgcolor="white",
                       legend=dict(orientation="h", y=1.08), yaxis_title="End-of-day stock")
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig, width="stretch")
     st.dataframe(out[["Policy", "total_cost", "holding_cost", "ordering_cost", "lost_sales_cost", "fill_rate",
-                      "avg_inventory", "n_orders", "lost_units"]].round(3), hide_index=True, use_container_width=True)
+                      "avg_inventory", "n_orders", "lost_units"]].round(3), hide_index=True, width="stretch")
 
 
 def page_about():

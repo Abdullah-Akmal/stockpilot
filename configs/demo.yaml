@@ -1,0 +1,60 @@
+# Demo config: run the full pipeline on data/demo/demo_shop.csv without touching the real models/results.
+# STOCKPILOT_CONFIG=configs/demo.yaml LIVE_CSV_URL=<url of demo_shop.csv> python -m stockpilot.<step>
+# StockPilot configuration
+project:
+  name: StockPilot
+  tagline: "Autopilot for inventory: an RL agent that decides what to order today."
+
+data:
+  mode: live                # demo shop is read as a LIVE sheet
+  uci_url: "https://archive.ics.uci.edu/static/public/502/online+retail+ii.zip"
+  raw_dir: data/raw
+  processed_path: data/processed/daily_public.csv
+  sample_path: data/sample/sample_sales.csv
+  n_skus: 10
+  min_trading_days: 400     # SKU must have at least this many trading days in range
+  min_coverage: 0.70        # fraction of trading days with a sale
+  train_frac: 0.75
+  live:
+    csv_url_env: LIVE_CSV_URL   # env var used by CI; Streamlit uses st.secrets["live"]["csv_url"]
+
+costs:
+  unit_cost_frac: 0.6       # unit_cost = frac * price when unknown
+  holding_rate_annual: 1.0  # carrying cost incl. capital, storage, obsolescence of seasonal giftware; per unit-day = rate/365 * unit_cost
+  order_cost: 2.0           # fixed cost per order placed (GBP)
+  goodwill_frac: 0.5        # stockout penalty = (price - unit_cost) + goodwill_frac * price
+  lead_time_days: 3
+  shelf_life_days: null     # null = no expiry; integer enables FIFO expiry
+  target_fill_rate: 0.95
+
+env:
+  max_lead_time: 14
+  history_len: 14
+  n_actions: 21
+  action_max_mult: 3.0      # max order = mult * mean lead-time demand
+  episode_len: 180
+  block_len: 7
+  reward: cost              # cost | profit  (same optimum; cost has far lower variance)
+
+ppo:
+  total_timesteps: 500000
+  n_envs: 8
+  n_steps: 512
+  batch_size: 512
+  n_epochs: 10
+  learning_rate: 0.0003
+  gamma: 0.99
+  gae_lambda: 0.95
+  ent_coef: 0.01
+  clip_range: 0.2
+  net_arch: [128, 128]
+  seed: 42
+  n_seeds: 1               # challengers per SKU per retrain; best by TRAIN cost, promoted only if it beats the current agent
+  init_p_zero: 0.9         # initial P(order nothing); keeps early exploration from overstocking
+
+# Per-SKU tuning, chosen by TRAINING-period cost only (never by test results).
+sku_overrides: {}
+
+paths:
+  models_dir: models_demo
+  results_dir: results_demo

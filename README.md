@@ -174,6 +174,35 @@ get a (s,S) recommendation until the next retrain; add the same URL as the `LIVE
 weekly retrain trains on your sheet. A private sheet can be read with a gspread service account instead (see
 [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example)).
 
+### Try LIVE mode with demo data
+
+[`data/demo/demo_shop.csv`](data/demo/demo_shop.csv) is a fictional coffee shop (8 SKUs, one year of daily rows) in the
+sheet schema. It has weekly patterns, promotions, a Christmas gift peak, lead times from 2 to 7 days, real stockouts
+from an imperfect manual reorder rule, and one SKU launched 20 days ago. [`demo_shop_broken.csv`](data/demo/demo_shop_broken.csv)
+holds the same data with five typical sheet mistakes, to see the validation messages. Regenerate both with
+`python scripts/make_demo_data.py`, which is seeded and ends yesterday.
+
+To use it in the deployed app without a Google Sheet, put its raw GitHub URL in the app's Secrets:
+
+```toml
+[live]
+csv_url = "https://raw.githubusercontent.com/Abdullah-Akmal/stockpilot/main/data/demo/demo_shop.csv"
+```
+
+To run the full pipeline on it without touching the real `models/` and `results/`, use
+[`configs/demo.yaml`](configs/demo.yaml), which writes to `models_demo/` and `results_demo/`:
+
+```bash
+export STOCKPILOT_CONFIG=configs/demo.yaml
+export LIVE_CSV_URL=https://raw.githubusercontent.com/Abdullah-Akmal/stockpilot/main/data/demo/demo_shop.csv
+python -m stockpilot.data && python -m stockpilot.baselines && python -m stockpilot.train --all && python -m stockpilot.evaluate
+```
+
+On the demo shop (one seed, no per-SKU tuning), PPO beat (s,S) on 3 of 7 SKUs on its 92 held-out days, with 10.4%
+lower total cost overall. It lost clearly on the steadiest products (Earl Grey −173%, 12oz cups −58%), where a tuned
+(s,S) is already near-optimal. The demo data is synthetic and its `units_sold` are capped by stockouts (censored
+demand), as in real shop data; StockPilot treats sales as demand.
+
 ## Deploy (Streamlit Community Cloud)
 
 1. Go to <https://share.streamlit.io> and sign in with GitHub.

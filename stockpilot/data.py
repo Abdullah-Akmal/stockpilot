@@ -39,28 +39,30 @@ def validate_schema(df: pd.DataFrame) -> list[str]:
     if missing:
         errors.append(f"Missing required column(s): {', '.join(missing)}. "
                       f"Expected: {', '.join(REQUIRED_COLUMNS)}.")
-        return errors
     if df.empty:
-        return ["The sheet has no data rows."]
+        return errors + ["The sheet has no data rows."]
     d = df.copy()
     d.columns = cols
-    dates = pd.to_datetime(d["date"], errors="coerce")
+    if "date" not in d or "sku" not in d:
+        return errors          # cannot check rows without date and sku
+    dates = pd.to_datetime(d["date"], errors="coerce", format="mixed")
     if dates.isna().any():
         bad = d.loc[dates.isna(), "date"].astype(str).head(3).tolist()
         errors.append(f"{int(dates.isna().sum())} row(s) have an unreadable date (e.g. {bad}). Use YYYY-MM-DD.")
     if d["sku"].isna().any() or (d["sku"].astype(str).str.strip() == "").any():
         errors.append("Some rows have an empty sku.")
-    for col in ["units_sold", "on_hand", "unit_cost", "price", "lead_time_days"]:
+    for col in [c for c in ["units_sold", "on_hand", "unit_cost", "price", "lead_time_days"] if c in d]:
         num = pd.to_numeric(d[col], errors="coerce")
         if num.isna().any():
             errors.append(f"Column '{col}' has {int(num.isna().sum())} non-numeric or empty value(s).")
         elif (num < 0).any():
             errors.append(f"Column '{col}' has {int((num < 0).sum())} negative value(s).")
-    lt = pd.to_numeric(d["lead_time_days"], errors="coerce")
+    lt = pd.to_numeric(d["lead_time_days"], errors="coerce") if "lead_time_days" in d else pd.Series(dtype=float)
     if lt.notna().all() and (lt > 14).any():
         errors.append("lead_time_days must be at most 14.")
-    if not dates.isna().any():
-        dup = d.assign(date=dates).duplicated(subset=["date", "sku"]).sum()
+    ok = dates.notna()
+    if ok.any():
+        dup = d[ok].assign(date=dates[ok]).duplicated(subset=["date", "sku"]).sum()
         if dup:
             errors.append(f"{int(dup)} duplicate (date, sku) row(s). Keep one row per SKU per day.")
     return errors

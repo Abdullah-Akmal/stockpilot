@@ -169,7 +169,7 @@ def train_and_promote(ctx: SkuContext, cfg: dict, steps: int | None = None, n_se
     n_seeds = int(n_seeds or eff["ppo"].get("n_seeds", 1))
     base_seed = int(eff["ppo"]["seed"])
     models = resolve(cfg["paths"]["models_dir"])
-    staging = models / ".staging"
+    staging = models / ".staging" / ctx.sku       # per SKU: parallel trainings must not share (or delete) it
     cands = []
     for k in range(n_seeds):
         root = staging / f"seed{k}"

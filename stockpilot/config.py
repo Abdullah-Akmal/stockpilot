@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import os
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +13,9 @@ DEFAULT_CONFIG = ROOT / "configs" / "config.yaml"
 
 
 def load_config(path: str | Path | None = None) -> dict[str, Any]:
-    with open(path or DEFAULT_CONFIG, "r", encoding="utf-8") as f:
+    """Load the config: explicit path > $STOCKPILOT_CONFIG > configs/config.yaml."""
+    path = path or os.environ.get("STOCKPILOT_CONFIG") or DEFAULT_CONFIG
+    with open(resolve(path), "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 

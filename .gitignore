@@ -10,3 +10,6 @@ logs/
 variants/
 .claude/
 models/.staging/
+models_demo/
+results_demo/
+data/processed/daily_live.csv

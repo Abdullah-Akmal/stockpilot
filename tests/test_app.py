@@ -11,6 +11,8 @@ pytestmark = pytest.mark.skipif(not (ROOT / "results" / "metrics.csv").exists(),
 def test_page_renders(mode, page):
     from streamlit.testing.v1 import AppTest
     at = AppTest.from_file(str(ROOT / "app" / "streamlit_app.py"), default_timeout=300)
+    # unreachable sheet: LIVE must show a clear error and fall back (independent of any local secrets.toml)
+    at.secrets["live"] = {"csv_url": "http://127.0.0.1:9/missing.csv"}
     at.run()
     at.sidebar.radio[0].set_value(mode)
     at.sidebar.radio[1].set_value(page)

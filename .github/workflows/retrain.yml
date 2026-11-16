@@ -54,13 +54,23 @@ jobs:
           ARGS=""; [ -n "$STEPS" ] && ARGS="--steps $STEPS"
           SKUS=$(python -c "from stockpilot.config import load_config; from stockpilot.data import load_dataset, sku_contexts; c=load_config(); print(' '.join(x.sku for x in sku_contexts(load_dataset('${{ steps.mode.outputs.mode }}', c).df, c)))")
           mkdir -p logs
+          PIDS=""
           for s in $SKUS; do
             python -m stockpilot.train --mode ${{ steps.mode.outputs.mode }} --sku "$s" $ARGS > "logs/train_$s.log" 2>&1 &
+            PIDS="$PIDS $!:$s"
             # at most 4 concurrent trainings (runner has 4 vCPUs)
             while [ "$(jobs -rp | wc -l)" -ge 4 ]; do sleep 5; done
           done
-          wait
-          grep -h "^\[" logs/train_*.log
+          FAILED=""
+          for p in $PIDS; do
+            wait "${p%%:*}" || FAILED="$FAILED ${p#*:}"
+          done
+          grep -h "^\[" logs/train_*.log || true
+          if [ -n "$FAILED" ]; then
+            echo "::error::Training failed for:$FAILED"
+            for s in $FAILED; do echo "--- $s"; tail -30 "logs/train_$s.log"; done
+            exit 1
+          fi
 
       - name: 4. Backtest on held-out period
         run: python -m stockpilot.evaluate --mode ${{ steps.mode.outputs.mode }}
